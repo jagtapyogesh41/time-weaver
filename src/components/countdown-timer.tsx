@@ -32,7 +32,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { PlusCircle, Clock, RotateCcw } from "lucide-react";
+import { PlusCircle } from "lucide-react";
 
 interface TimeLeft {
   days: number;
@@ -65,12 +65,11 @@ const CountdownCard = ({ timer, onRemove }: { timer: Timer; onRemove: (id: strin
   const [notification, setNotification] = useState<string | null>(null);
 
   useEffect(() => {
-    const interval = setInterval(() => {
+    const calculateTimeLeft = () => {
       const now = new Date();
       const distance = timer.targetDate.getTime() - now.getTime();
 
       if (distance <= 0) {
-        clearInterval(interval);
         setIsExpired(true);
         setTimeLeft({ days: 0, hours: 0, minutes: 0, seconds: 0 });
         
@@ -82,19 +81,30 @@ const CountdownCard = ({ timer, onRemove }: { timer: Timer; onRemove: (id: strin
         }).then((res) => {
             setNotification(res.notificationMessage);
         });
-
+        return null;
       } else {
-        setTimeLeft({
+        return {
           days: Math.floor(distance / (1000 * 60 * 60 * 24)),
           hours: Math.floor((distance % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60)),
           minutes: Math.floor((distance % (1000 * 60 * 60)) / (1000 * 60)),
           seconds: Math.floor((distance % (1000 * 60)) / 1000),
-        });
+        };
+      }
+    };
+    
+    setTimeLeft(calculateTimeLeft());
+
+    const interval = setInterval(() => {
+      const newTimeLeft = calculateTimeLeft();
+      if(newTimeLeft) {
+        setTimeLeft(newTimeLeft);
+      } else {
+        clearInterval(interval);
       }
     }, 1000);
 
     return () => clearInterval(interval);
-  }, [timer.targetDate]);
+  }, [timer.targetDate, timer.title]);
 
   const formattedTargetDate = useMemo(() => {
     return timer.targetDate.toLocaleString(undefined, {
@@ -206,23 +216,26 @@ export function CountdownTimer() {
   };
 
   const handleAddTimer = () => {
-    const newTarget = selectedDate ? new Date(selectedDate) : new Date();
+    if (!title || !selectedDate) return;
+
+    const newTarget = new Date(selectedDate);
     const now = new Date();
     
-    newTarget.setHours(parseInt(time.hour, 10) || now.getHours());
-    newTarget.setMinutes(parseInt(time.minute, 10) || now.getMinutes());
-    newTarget.setSeconds(parseInt(time.second, 10) || now.getSeconds());
+    newTarget.setHours(parseInt(time.hour, 10) || 0);
+    newTarget.setMinutes(parseInt(time.minute, 10) || 0);
+    newTarget.setSeconds(parseInt(time.second, 10) || 0);
     newTarget.setMilliseconds(0);
 
-    if (newTarget.getTime() > now.getTime() && title) {
+    if (newTarget.getTime() > now.getTime()) {
       const newTimer: Timer = {
         id: new Date().getTime().toString(),
         title,
         targetDate: newTarget
       };
-      setTimers(prev => [...prev, newTimer]);
+      setTimers(prev => [...prev, newTimer].sort((a,b) => a.targetDate.getTime() - b.targetDate.getTime()));
     }
     setIsDialogOpen(false);
+    setTitle("");
   };
   
   const handleRemoveTimer = (id: string) => {
@@ -321,10 +334,12 @@ export function CountdownTimer() {
             <DialogClose asChild>
                 <Button variant="ghost">Cancel</Button>
             </DialogClose>
-            <Button onClick={handleAddTimer} disabled={!title}>Set Countdown</Button>
+            <Button onClick={handleAddTimer} disabled={!title || !selectedDate}>Set Countdown</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
     </>
   );
 }
+
+    
