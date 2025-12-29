@@ -32,7 +32,19 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { PlusCircle } from "lucide-react";
+import { PlusCircle, LogOut } from "lucide-react";
+import { useAuth } from "@/lib/auth";
+import { db, auth } from "@/lib/firebase/config";
+import {
+  collection,
+  addDoc,
+  onSnapshot,
+  doc,
+  deleteDoc,
+  query,
+  where,
+  Timestamp,
+} from "firebase/firestore";
 
 interface TimeLeft {
   days: number;
@@ -45,6 +57,7 @@ interface Timer {
     id: string;
     title: string;
     targetDate: Date;
+    userId: string;
 }
 
 const TimeBox = ({ value, label }: { value: string; label: string }) => (
@@ -167,37 +180,34 @@ const CountdownCard = ({ timer, onRemove }: { timer: Timer; onRemove: (id: strin
 
 
 export function CountdownTimer() {
+  const { user, loading } = useAuth();
   const [timers, setTimers] = useState<Timer[]>([]);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
-  const [isMounted, setIsMounted] = useState(false);
-
+  
   // State for date/time picker dialog
   const [title, setTitle] = useState("");
   const [selectedDate, setSelectedDate] = useState<Date | undefined>(new Date());
   const [time, setTime] = useState({ hour: "00", minute: "00", second: "00" });
 
   useEffect(() => {
-    setIsMounted(true);
-    const savedTimers = localStorage.getItem("timers");
-    if (savedTimers) {
-      try {
-        const parsedTimers: any[] = JSON.parse(savedTimers);
-        const validTimers = parsedTimers
-          .map(t => ({...t, targetDate: new Date(t.targetDate)}))
-          .filter(t => t.targetDate.getTime() > new Date().getTime());
-        setTimers(validTimers);
-      } catch(e) {
-        console.error("Failed to parse timers from localStorage", e);
-        localStorage.removeItem("timers");
-      }
+    if (user) {
+      const q = query(collection(db, "timers"), where("userId", "==", user.uid));
+      const unsubscribe = onSnapshot(q, (querySnapshot) => {
+        const timersData: Timer[] = [];
+        querySnapshot.forEach((doc) => {
+          const data = doc.data();
+          timersData.push({
+            id: doc.id,
+            title: data.title,
+            targetDate: (data.targetDate as Timestamp).toDate(),
+            userId: data.userId,
+          });
+        });
+        setTimers(timersData.sort((a,b) => a.targetDate.getTime() - b.targetDate.getTime()));
+      });
+      return () => unsubscribe();
     }
-  }, []);
-
-  useEffect(() => {
-    if (isMounted) {
-      localStorage.setItem("timers", JSON.stringify(timers));
-    }
-  }, [timers, isMounted]);
+  }, [user]);
 
 
   const handleOpenDialog = () => {
@@ -215,8 +225,8 @@ export function CountdownTimer() {
     setIsDialogOpen(true);
   };
 
-  const handleAddTimer = () => {
-    if (!title || !selectedDate) return;
+  const handleAddTimer = async () => {
+    if (!title || !selectedDate || !user) return;
 
     const newTarget = new Date(selectedDate);
     const now = new Date();
@@ -227,20 +237,23 @@ export function CountdownTimer() {
     newTarget.setMilliseconds(0);
 
     if (newTarget.getTime() > now.getTime()) {
-      const newTimer: Timer = {
-        id: new Date().getTime().toString(),
+      await addDoc(collection(db, "timers"), {
         title,
-        targetDate: newTarget
-      };
-      setTimers(prev => [...prev, newTimer].sort((a,b) => a.targetDate.getTime() - b.targetDate.getTime()));
+        targetDate: Timestamp.fromDate(newTarget),
+        userId: user.uid,
+      });
     }
     setIsDialogOpen(false);
     setTitle("");
   };
   
-  const handleRemoveTimer = (id: string) => {
-    setTimers(prev => prev.filter(timer => timer.id !== id));
+  const handleRemoveTimer = async (id: string) => {
+    await deleteDoc(doc(db, "timers", id));
   };
+
+  const handleSignOut = async () => {
+    await auth.signOut();
+  }
   
   const handleTimeInputChange = (e: React.ChangeEvent<HTMLInputElement>, unit: 'hour' | 'minute' | 'second') => {
     const value = e.target.value.replace(/[^0-9]/g, '').slice(0, 2);
@@ -256,9 +269,8 @@ export function CountdownTimer() {
     setTime(prev => ({...prev, [unit]: value}));
   };
 
-
-  if (!isMounted) {
-    return <Card className="w-full max-w-4xl animate-pulse"><div className="h-[28rem]"></div></Card>;
+  if (loading || !user) {
+    return <div className="flex min-h-screen w-full items-center justify-center"><Card className="w-full max-w-4xl animate-pulse"><div className="h-[28rem]"></div></Card></div>;
   }
 
   return (
@@ -269,7 +281,10 @@ export function CountdownTimer() {
                 <h1 className="text-4xl font-headline font-bold text-primary">Time Weaver</h1>
                 <p className="text-muted-foreground">Your personal countdown manager.</p>
             </div>
-            <Button onClick={handleOpenDialog}><PlusCircle className="mr-2 h-4 w-4" />Add New Timer</Button>
+            <div className="flex items-center gap-4">
+              <Button onClick={handleOpenDialog}><PlusCircle className="mr-2 h-4 w-4" />Add New Timer</Button>
+              <Button variant="ghost" size="icon" onClick={handleSignOut}><LogOut /></Button>
+            </div>
         </header>
         
         {timers.length > 0 ? (
@@ -341,5 +356,3 @@ export function CountdownTimer() {
     </>
   );
 }
-
-    
