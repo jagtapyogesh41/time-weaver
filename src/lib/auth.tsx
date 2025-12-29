@@ -37,9 +37,11 @@ export const AuthProvider = ({children}: {children: React.ReactNode}) => {
     
     if (!user && !isAuthPage) {
       router.push('/login');
-    } else if (user && isAuthPage) {
-      router.push('/');
     }
+    // We don't need to redirect if the user is on an auth page,
+    // they might be there by mistake and can navigate away themselves.
+    // The previous logic could cause a redirect loop.
+
   }, [user, loading, pathname, router]);
 
 

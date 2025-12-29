@@ -1,7 +1,6 @@
-
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import { getCountdownNotification } from "@/app/actions";
 import { Button } from "@/components/ui/button";
 import {
@@ -76,6 +75,7 @@ const CountdownCard = ({ timer, onRemove }: { timer: Timer; onRemove: (id: strin
   const [timeLeft, setTimeLeft] = useState<TimeLeft | null>(null);
   const [isExpired, setIsExpired] = useState(false);
   const [notification, setNotification] = useState<string | null>(null);
+  const notificationFetched = useRef(false);
 
   useEffect(() => {
     const calculateTimeLeft = () => {
@@ -86,14 +86,17 @@ const CountdownCard = ({ timer, onRemove }: { timer: Timer; onRemove: (id: strin
         setIsExpired(true);
         setTimeLeft({ days: 0, hours: 0, minutes: 0, seconds: 0 });
         
-        const timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
-        getCountdownNotification({
-            targetDate: timer.targetDate.toISOString(),
-            timeZone: timeZone,
-            location: timeZone,
-        }).then((res) => {
-            setNotification(res.notificationMessage);
-        });
+        if (!notificationFetched.current) {
+          notificationFetched.current = true;
+          const timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+          getCountdownNotification({
+              targetDate: timer.targetDate.toISOString(),
+              timeZone: timeZone,
+              location: timeZone,
+          }).then((res) => {
+              setNotification(res.notificationMessage);
+          });
+        }
         return null;
       } else {
         return {
@@ -105,7 +108,11 @@ const CountdownCard = ({ timer, onRemove }: { timer: Timer; onRemove: (id: strin
       }
     };
     
-    setTimeLeft(calculateTimeLeft());
+    // Set initial time left immediately
+    const initialTimeLeft = calculateTimeLeft();
+    if (initialTimeLeft) {
+      setTimeLeft(initialTimeLeft);
+    }
 
     const interval = setInterval(() => {
       const newTimeLeft = calculateTimeLeft();
@@ -269,9 +276,14 @@ export function CountdownTimer() {
     setTime(prev => ({...prev, [unit]: value}));
   };
 
-  if (loading || !user) {
+  if (loading) {
     return <div className="flex min-h-screen w-full items-center justify-center"><Card className="w-full max-w-4xl animate-pulse"><div className="h-[28rem]"></div></Card></div>;
   }
+  
+  if (!user) {
+    return null; // Don't render anything if not logged in, auth provider handles redirect
+  }
+
 
   return (
     <>
