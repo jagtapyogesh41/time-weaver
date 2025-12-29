@@ -217,11 +217,11 @@ export function CountdownTimer() {
       </Card>
 
       <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-        <DialogContent className="sm:max-w-[650px] grid-rows-[auto_1fr_auto] p-0">
-          <DialogHeader className="p-6 pb-0">
+        <DialogContent className="sm:max-w-[650px]">
+          <DialogHeader>
             <DialogTitle className="font-headline">Set Target Date and Time</DialogTitle>
           </DialogHeader>
-          <div className="grid gap-4 md:grid-cols-2 p-6 overflow-y-auto">
+          <div className="grid gap-4 py-4 md:grid-cols-2">
             <div className="flex justify-center">
               <Calendar
                 mode="single"
@@ -251,7 +251,7 @@ export function CountdownTimer() {
               </div>
             </div>
           </div>
-          <DialogFooter className="p-6 pt-0">
+          <DialogFooter>
             <DialogClose asChild>
                 <Button variant="ghost">Cancel</Button>
             </DialogClose>
