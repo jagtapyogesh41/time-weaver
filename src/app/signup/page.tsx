@@ -1,26 +1,51 @@
 'use client';
 
-import {useState} from 'react';
-import {createUserWithEmailAndPassword} from 'firebase/auth';
-import {auth} from '@/lib/firebase/config';
-import {useRouter} from 'next/navigation';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { createUserWithEmailAndPassword } from 'firebase/auth';
 import Link from 'next/link';
-import {Button} from '@/components/ui/button';
-import {Card, CardContent, CardDescription, CardHeader, CardTitle} from '@/components/ui/card';
-import {Input} from '@/components/ui/input';
-import {Label} from '@/components/ui/label';
-import {useToast} from '@/hooks/use-toast';
+import { useRouter } from 'next/navigation';
+import { useForm } from 'react-hook-form';
+import { z } from 'zod';
+
+import { auth } from '@/lib/firebase/config';
+import { Button } from '@/components/ui/button';
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from '@/components/ui/card';
+import {
+  Form,
+  FormControl,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage,
+} from '@/components/ui/form';
+import { Input } from '@/components/ui/input';
+import { useToast } from '@/hooks/use-toast';
+
+const formSchema = z.object({
+  email: z.string().email({ message: 'Invalid email address.' }),
+  password: z.string().min(6, { message: 'Password must be at least 6 characters.' }),
+});
 
 export default function SignupPage() {
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
   const router = useRouter();
-  const {toast} = useToast();
+  const { toast } = useToast();
+  const form = useForm<z.infer<typeof formSchema>>({
+    resolver: zodResolver(formSchema),
+    defaultValues: {
+      email: '',
+      password: '',
+    },
+  });
 
-  const handleSignup = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleSignup = async (values: z.infer<typeof formSchema>) => {
     try {
-      await createUserWithEmailAndPassword(auth, email, password);
+      await createUserWithEmailAndPassword(auth, values.email, values.password);
       router.push('/');
     } catch (error: any) {
       toast({
@@ -39,32 +64,39 @@ export default function SignupPage() {
           <CardDescription>Enter your information to create an account.</CardDescription>
         </CardHeader>
         <CardContent>
-          <form onSubmit={handleSignup} className="grid gap-4">
-            <div className="grid gap-2">
-              <Label htmlFor="email">Email</Label>
-              <Input
-                id="email"
-                type="email"
-                placeholder="m@example.com"
-                required
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
+          <Form {...form}>
+            <form onSubmit={form.handleSubmit(handleSignup)} className="grid gap-4">
+              <FormField
+                control={form.control}
+                name="email"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Email</FormLabel>
+                    <FormControl>
+                      <Input placeholder="m@example.com" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
               />
-            </div>
-            <div className="grid gap-2">
-              <Label htmlFor="password">Password</Label>
-              <Input
-                id="password"
-                type="password"
-                required
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
+              <FormField
+                control={form.control}
+                name="password"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Password</FormLabel>
+                    <FormControl>
+                      <Input type="password" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
               />
-            </div>
-            <Button type="submit" className="w-full">
-              Create Account
-            </Button>
-          </form>
+              <Button type="submit" className="w-full">
+                Create Account
+              </Button>
+            </form>
+          </Form>
           <div className="mt-4 text-center text-sm">
             Already have an account?{' '}
             <Link href="/login" className="underline">
